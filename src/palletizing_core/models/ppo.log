@@ -1,0 +1,30 @@
+09:51:39 greedy teacher eval_util 0.5782 on 32 fixed episodes
+09:52:07 [bc] epoch 1/8 loss 7.6144 imitation acc 0.284 (16000 samples)
+09:52:21 [bc] epoch 2/8 loss 3.9106 imitation acc 0.440 (16000 samples)
+09:52:24 [bc] epoch 3/8 loss 2.9793 imitation acc 0.579 (16000 samples)
+09:52:28 [bc] epoch 4/8 loss 1.6202 imitation acc 0.690 (16000 samples)
+09:52:32 [bc] epoch 5/8 loss 0.8769 imitation acc 0.841 (16000 samples)
+09:52:36 [bc] epoch 6/8 loss 0.6237 imitation acc 0.903 (16000 samples)
+09:52:41 [bc] epoch 7/8 loss 0.4902 imitation acc 0.935 (16000 samples)
+09:52:47 [bc] epoch 8/8 loss 0.4275 imitation acc 0.948 (16000 samples)
+09:52:52 [bc] eval_util 0.5971
+09:54:02 [ppo] upd 20/400 train_util 0.613 eval_util 0.5765 (best 0.5765) ent 0.306 kl 0.0025 clip 0.036 vloss 0.140
+09:55:12 [ppo] upd 40/400 train_util 0.592 eval_util 0.5883 (best 0.5883) ent 0.297 kl 0.0029 clip 0.035 vloss 0.164
+09:56:18 [ppo] upd 60/400 train_util 0.586 eval_util 0.5808 (best 0.5883) ent 0.292 kl 0.0031 clip 0.026 vloss 0.184
+09:57:28 [ppo] upd 80/400 train_util 0.619 eval_util 0.5891 (best 0.5891) ent 0.241 kl 0.0044 clip 0.046 vloss 0.095
+09:58:38 [ppo] upd 100/400 train_util 0.624 eval_util 0.5772 (best 0.5891) ent 0.258 kl 0.0054 clip 0.044 vloss 0.127
+09:59:45 [ppo] upd 120/400 train_util 0.635 eval_util 0.5825 (best 0.5891) ent 0.292 kl 0.0015 clip 0.013 vloss 0.076
+10:00:53 [ppo] upd 140/400 train_util 0.640 eval_util 0.6080 (best 0.6080) ent 0.277 kl 0.0010 clip 0.028 vloss 0.089
+10:01:59 [ppo] upd 160/400 train_util 0.609 eval_util 0.5844 (best 0.6080) ent 0.315 kl 0.0003 clip 0.005 vloss 0.150
+10:03:06 [ppo] upd 180/400 train_util 0.609 eval_util 0.5868 (best 0.6080) ent 0.378 kl 0.0079 clip 0.039 vloss 0.075
+10:04:11 [ppo] upd 200/400 train_util 0.618 eval_util 0.5920 (best 0.6080) ent 0.392 kl -0.0004 clip 0.021 vloss 0.168
+10:05:14 [ppo] upd 220/400 train_util 0.618 eval_util 0.5735 (best 0.6080) ent 0.308 kl 0.0029 clip 0.037 vloss 0.117
+10:06:20 [ppo] upd 240/400 train_util 0.626 eval_util 0.5717 (best 0.6080) ent 0.311 kl 0.0023 clip 0.014 vloss 0.129
+10:07:27 [ppo] upd 260/400 train_util 0.591 eval_util 0.5830 (best 0.6080) ent 0.321 kl 0.0021 clip 0.012 vloss 0.145
+10:08:35 [ppo] upd 280/400 train_util 0.603 eval_util 0.5692 (best 0.6080) ent 0.316 kl 0.0018 clip 0.015 vloss 0.102
+10:09:42 [ppo] upd 300/400 train_util 0.638 eval_util 0.5905 (best 0.6080) ent 0.292 kl 0.0001 clip 0.013 vloss 0.110
+10:10:50 [ppo] upd 320/400 train_util 0.604 eval_util 0.5846 (best 0.6080) ent 0.275 kl 0.0005 clip 0.001 vloss 0.092
+10:12:00 [ppo] upd 340/400 train_util 0.608 eval_util 0.5768 (best 0.6080) ent 0.294 kl 0.0010 clip 0.001 vloss 0.108
+10:13:08 [ppo] upd 360/400 train_util 0.620 eval_util 0.5625 (best 0.6080) ent 0.293 kl 0.0012 clip 0.001 vloss 0.176
+10:14:14 [ppo] upd 380/400 train_util 0.625 eval_util 0.5658 (best 0.6080) ent 0.302 kl 0.0003 clip 0.000 vloss 0.091
+10:15:19 [ppo] upd 400/400 train_util 0.640 eval_util 0.5763 (best 0.6080) ent 0.300 kl 0.0000 clip 0.000 vloss 0.112

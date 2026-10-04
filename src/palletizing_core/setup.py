@@ -12,6 +12,7 @@ setup(
         ("share/" + package_name + "/config", ["config/default.yaml"]),
     ],
     install_requires=["setuptools", "numpy", "matplotlib", "pyyaml"],
+    extras_require={"rl": ["torch"]},
     zip_safe=True,
     maintainer="LYL",
     maintainer_email="kite@changufix.top",
@@ -22,6 +23,7 @@ setup(
         "console_scripts": [
             "irap_demo = palletizing_core.demo:main",
             "irap_benchmark = palletizing_core.benchmark:main",
+            "irap_train = palletizing_core.rl.train:main",
         ],
     },
 )

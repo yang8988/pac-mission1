@@ -28,6 +28,7 @@ def main(argv=None) -> int:
     ap.add_argument("--max-rollouts", type=int, default=32, help="rollouts per decision for irap_la")
     ap.add_argument("--time-budget", type=float, help="seconds per decision for irap_la (overrides --max-rollouts)")
     ap.add_argument("--lookahead-k", type=int, default=0, help="observed upstream boxes passed to the planner")
+    ap.add_argument("--model", help="trained policy checkpoint for irap_rl")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="out/demo")
     args = ap.parse_args(argv)
@@ -38,7 +39,7 @@ def main(argv=None) -> int:
     counts = counts_for_fill(rng, types, cfg, args.fill)
     seq = make_sequence(rng, types, counts, args.order, cfg)
 
-    res = run_episode(cfg, types, counts, seq, make_planner(args.strategy), args.lookahead_k)
+    res = run_episode(cfg, types, counts, seq, make_planner(args.strategy, args.model), args.lookahead_k)
     m = res.metrics()
     errors = validate(res.state)
 

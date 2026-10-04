@@ -5,7 +5,8 @@
 
 `irap_la` is the stage-3 lookahead planner. By default it uses a fixed rollout budget per
 decision (`--max-rollouts`) so results are deterministic and machine independent; pass
-`--time-budget` to use the wall-clock budget instead.
+`--time-budget` to use the wall-clock budget instead. `irap_rl` is the stage-4 policy and needs
+`--model models/ppo.pt` (and torch).
 """
 
 from __future__ import annotations
@@ -25,21 +26,33 @@ from .lookahead import LookaheadPlanner
 from .planner import STRATEGIES, GreedyPlanner
 from .simulate import run_episode, validate
 
-ALL_STRATEGIES = STRATEGIES + ("irap_la",)
+ALL_STRATEGIES = STRATEGIES + ("irap_la", "irap_rl")
 COLUMNS = ("utilization", "placed_ratio", "min_support", "min_load_margin", "cog_offset", "decision_ms_mean", "robot_time_s")
 
 
-def make_planner(strategy: str):
-    return LookaheadPlanner() if strategy == "irap_la" else GreedyPlanner(strategy)
+def make_planner(strategy: str, model: Optional[str] = None):
+    if strategy == "irap_la":
+        return LookaheadPlanner()
+    if strategy == "irap_rl":
+        if not model:
+            raise ValueError("strategy irap_rl needs --model")
+        from .rl.planner import RLPlanner  # needs torch
+
+        return RLPlanner(model)
+    return GreedyPlanner(strategy)
 
 
 def run_one(task) -> Dict[str, float]:
-    cfg, order, seed, strategy, n_types, fill, lookahead_k = task
+    cfg, order, seed, strategy, n_types, fill, lookahead_k, model = task
+    if strategy == "irap_rl":
+        import torch
+
+        torch.set_num_threads(1)  # episodes already run in parallel processes
     rng = np.random.default_rng(seed)
     types = random_box_types(rng, n_types)
     counts = counts_for_fill(rng, types, cfg, fill)
     seq = make_sequence(rng, types, counts, order, cfg)
-    res = run_episode(cfg, types, counts, seq, make_planner(strategy), lookahead_k)
+    res = run_episode(cfg, types, counts, seq, make_planner(strategy, model), lookahead_k)
     row = {"order": order, "seed": seed, "strategy": strategy, **res.metrics()}
     row["violations"] = len(validate(res.state))
     return row
@@ -66,13 +79,14 @@ def main(argv=None) -> int:
     ap.add_argument("--max-rollouts", type=int, default=32, help="rollouts per decision for irap_la")
     ap.add_argument("--time-budget", type=float, help="seconds per decision for irap_la (overrides --max-rollouts)")
     ap.add_argument("--lookahead-k", type=int, default=0, help="observed upstream boxes passed to the planner")
+    ap.add_argument("--model", help="trained policy checkpoint for irap_rl")
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--csv", default="out/benchmark.csv")
     args = ap.parse_args(argv)
 
     cfg = build_config(args.config, args.max_rollouts, args.time_budget)
     tasks = [
-        (cfg, order, seed, strat, args.types, args.fill, args.lookahead_k)
+        (cfg, order, seed, strat, args.types, args.fill, args.lookahead_k, args.model)
         for order in args.orders
         for seed in range(args.seeds)
         for strat in args.strategies
