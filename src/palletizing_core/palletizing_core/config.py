@@ -85,6 +85,8 @@ class LookaheadParams:
     beta_min: float = 0.3  # weight of the future term at the end
     compactness: float = 0.3  # share of the compactness proxy in the rollout value (until V_theta exists)
     adversarial_frac: float = 0.25  # share of scenarios with unfavourable (small first) order
+    prior_weight: float = 0.5  # eta: weight of log pi when choosing the K0 candidates (needs a model)
+    value_leaf: bool = False  # end rollouts with V_theta when a model is given (hurt in stage 5 tests)
     seed: int = 0
 
 

@@ -1,0 +1,25 @@
+10:32:09 start: init models/ppo.pt, student eval_util 0.6080
+10:38:33 iter 1: expert util 0.6469 on 64 episodes, 2751 samples (6.4 min)
+10:38:35   [fit] epoch 1/6 pi_loss 1.227 v_mse 0.423 expert-match 0.739
+10:38:36   [fit] epoch 2/6 pi_loss 0.813 v_mse 0.413 expert-match 0.803
+10:38:36   [fit] epoch 3/6 pi_loss 0.609 v_mse 0.395 expert-match 0.841
+10:38:37   [fit] epoch 4/6 pi_loss 0.528 v_mse 0.378 expert-match 0.854
+10:38:38   [fit] epoch 5/6 pi_loss 0.478 v_mse 0.359 expert-match 0.861
+10:38:39   [fit] epoch 6/6 pi_loss 0.446 v_mse 0.348 expert-match 0.870
+10:38:43 iter 1: student eval_util 0.5792, saved models/ei/ei_1.pt
+10:44:28 iter 2: expert util 0.6473 on 64 episodes, 2751 samples (5.8 min)
+10:44:30   [fit] epoch 1/6 pi_loss 0.424 v_mse 0.323 expert-match 0.873
+10:44:32   [fit] epoch 2/6 pi_loss 0.402 v_mse 0.302 expert-match 0.880
+10:44:33   [fit] epoch 3/6 pi_loss 0.392 v_mse 0.289 expert-match 0.883
+10:44:35   [fit] epoch 4/6 pi_loss 0.383 v_mse 0.276 expert-match 0.886
+10:44:37   [fit] epoch 5/6 pi_loss 0.377 v_mse 0.267 expert-match 0.889
+10:44:38   [fit] epoch 6/6 pi_loss 0.372 v_mse 0.256 expert-match 0.893
+10:44:43 iter 2: student eval_util 0.5847, saved models/ei/ei_2.pt
+10:50:29 iter 3: expert util 0.6473 on 64 episodes, 2751 samples (5.8 min)
+10:50:32   [fit] epoch 1/6 pi_loss 0.370 v_mse 0.238 expert-match 0.894
+10:50:34   [fit] epoch 2/6 pi_loss 0.366 v_mse 0.224 expert-match 0.895
+10:50:37   [fit] epoch 3/6 pi_loss 0.362 v_mse 0.213 expert-match 0.894
+10:50:39   [fit] epoch 4/6 pi_loss 0.360 v_mse 0.202 expert-match 0.895
+10:50:41   [fit] epoch 5/6 pi_loss 0.357 v_mse 0.189 expert-match 0.896
+10:50:44   [fit] epoch 6/6 pi_loss 0.354 v_mse 0.178 expert-match 0.897
+10:50:49 iter 3: student eval_util 0.5935, saved models/ei/ei_3.pt

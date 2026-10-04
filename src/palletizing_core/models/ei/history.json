@@ -1,0 +1,20 @@
+[
+  {
+    "iteration": 1,
+    "expert_util": 0.6469042968750001,
+    "student_eval_util": 0.5791536458333333,
+    "samples_total": 2751
+  },
+  {
+    "iteration": 2,
+    "expert_util": 0.6472677951388889,
+    "student_eval_util": 0.584748263888889,
+    "samples_total": 5502
+  },
+  {
+    "iteration": 3,
+    "expert_util": 0.6472677951388889,
+    "student_eval_util": 0.5934505208333333,
+    "samples_total": 8253
+  }
+]

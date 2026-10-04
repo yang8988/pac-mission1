@@ -49,4 +49,6 @@ config:
     beta_min: 0.3
     compactness: 0.3
     adversarial_frac: 0.25
+    prior_weight: 0.5
+    value_leaf: false
     seed: 0

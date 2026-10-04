@@ -6,7 +6,8 @@
 `irap_la` is the stage-3 lookahead planner. By default it uses a fixed rollout budget per
 decision (`--max-rollouts`) so results are deterministic and machine independent; pass
 `--time-budget` to use the wall-clock budget instead. `irap_rl` is the stage-4 policy and needs
-`--model models/ppo.pt` (and torch).
+`--model models/ppo.pt` (and torch). `irap_ei` is the stage-5 planner: lookahead with the
+model's policy prior (and with --value-leaf, V_theta at the end of each rollout).
 """
 
 from __future__ import annotations
@@ -26,16 +27,18 @@ from .lookahead import LookaheadPlanner
 from .planner import STRATEGIES, GreedyPlanner
 from .simulate import run_episode, validate
 
-ALL_STRATEGIES = STRATEGIES + ("irap_la", "irap_rl")
+ALL_STRATEGIES = STRATEGIES + ("irap_la", "irap_rl", "irap_ei")
 COLUMNS = ("utilization", "placed_ratio", "min_support", "min_load_margin", "cog_offset", "decision_ms_mean", "robot_time_s")
 
 
 def make_planner(strategy: str, model: Optional[str] = None):
     if strategy == "irap_la":
         return LookaheadPlanner()
-    if strategy == "irap_rl":
+    if strategy in ("irap_rl", "irap_ei"):
         if not model:
-            raise ValueError("strategy irap_rl needs --model")
+            raise ValueError(f"strategy {strategy} needs --model")
+        if strategy == "irap_ei":
+            return LookaheadPlanner(model=model)
         from .rl.planner import RLPlanner  # needs torch
 
         return RLPlanner(model)
@@ -44,7 +47,7 @@ def make_planner(strategy: str, model: Optional[str] = None):
 
 def run_one(task) -> Dict[str, float]:
     cfg, order, seed, strategy, n_types, fill, lookahead_k, model = task
-    if strategy == "irap_rl":
+    if strategy in ("irap_rl", "irap_ei"):
         import torch
 
         torch.set_num_threads(1)  # episodes already run in parallel processes
@@ -79,12 +82,15 @@ def main(argv=None) -> int:
     ap.add_argument("--max-rollouts", type=int, default=32, help="rollouts per decision for irap_la")
     ap.add_argument("--time-budget", type=float, help="seconds per decision for irap_la (overrides --max-rollouts)")
     ap.add_argument("--lookahead-k", type=int, default=0, help="observed upstream boxes passed to the planner")
-    ap.add_argument("--model", help="trained policy checkpoint for irap_rl")
+    ap.add_argument("--model", help="trained policy checkpoint for irap_rl / irap_ei")
+    ap.add_argument("--value-leaf", action="store_true", help="irap_ei: end rollouts with V_theta (default: prior only)")
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--csv", default="out/benchmark.csv")
     args = ap.parse_args(argv)
 
     cfg = build_config(args.config, args.max_rollouts, args.time_budget)
+    if args.value_leaf:
+        cfg.lookahead = dataclasses.replace(cfg.lookahead, value_leaf=True)
     tasks = [
         (cfg, order, seed, strat, args.types, args.fill, args.lookahead_k, args.model)
         for order in args.orders
