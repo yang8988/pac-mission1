@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 GRAVITY = 9.81  # m/s^2, used to convert kg to N
 
@@ -68,11 +68,33 @@ class ScoreWeights:
 
 
 @dataclass
+class LookaheadParams:
+    """M6/M7: robust future evaluation with inventory-based scenarios."""
+
+    k0: int = 8  # candidates (best by Q_now) that get rollouts
+    max_scenarios: int = 16  # scenario pool size shared by all candidates
+    first_round: int = 2  # scenarios per candidate in the first halving round
+    depth: int = 10  # boxes simulated per rollout
+    rollout_limit: Optional[int] = 12  # fully checked candidates per rollout step (fast policy)
+    time_budget: Optional[float] = 0.5  # s per decision; None -> only max_rollouts limits
+    max_rollouts: Optional[int] = None  # deterministic budget for experiments
+    alpha: float = 0.2  # CVaR tail fraction
+    lam: float = 0.4  # weight of CVaR vs mean
+    mu: float = 0.3  # penalty on blocking probability
+    beta0: float = 1.0  # weight of the future term at the start
+    beta_min: float = 0.3  # weight of the future term at the end
+    compactness: float = 0.3  # share of the compactness proxy in the rollout value (until V_theta exists)
+    adversarial_frac: float = 0.25  # share of scenarios with unfavourable (small first) order
+    seed: int = 0
+
+
+@dataclass
 class Config:
     pallet: PalletSpec = field(default_factory=PalletSpec)
     robot: RobotSpec = field(default_factory=RobotSpec)
     constraints: ConstraintParams = field(default_factory=ConstraintParams)
     weights: ScoreWeights = field(default_factory=ScoreWeights)
+    lookahead: LookaheadParams = field(default_factory=LookaheadParams)
 
 
 def _update_dataclass(obj: Any, values: Dict[str, Any]) -> None:

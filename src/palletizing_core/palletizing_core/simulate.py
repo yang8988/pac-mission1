@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Union
 
 import numpy as np
 
@@ -12,6 +12,8 @@ from .config import GRAVITY, Config
 from .constraints import convex_hull, point_in_convex
 from .model import Box, BoxType, PalletState
 from .planner import PLACE, Decision, GreedyPlanner
+
+Planner = Union[GreedyPlanner, "LookaheadPlanner"]  # noqa: F821
 
 
 @dataclass
@@ -28,13 +30,19 @@ def run_episode(
     box_types: Sequence[BoxType],
     counts: Dict[str, int],
     sequence: Sequence[Box],
-    planner: GreedyPlanner,
+    planner: Planner,
+    lookahead_k: int = 0,
 ) -> EpisodeResult:
+    """Feed `sequence` to `planner` one box at a time.
+
+    `lookahead_k` boxes after the current one are passed as the observed upstream queue.
+    """
     state = PalletState.new(cfg, box_types, counts)
     result = EpisodeResult(state)
-    for box in sequence:
+    for n, box in enumerate(sequence):
         state.consume(box.type_id)
-        dec = planner.decide(state, box)
+        queue = [b.type_id for b in sequence[n + 1 : n + 1 + lookahead_k]]
+        dec = planner.decide(state, box, queue)
         if dec.action == PLACE:
             state.commit(dec.best)
         else:

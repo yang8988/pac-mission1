@@ -1,6 +1,7 @@
 """Run one episode and save metrics + a 3D image.
 
     python -m palletizing_core.demo --types 6 --order random --strategy irap --seed 0 --out out/demo
+    python -m palletizing_core.demo --strategy irap_la --max-rollouts 32 --lookahead-k 1
 """
 
 from __future__ import annotations
@@ -11,9 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import Config, load_config
 from .generator import ORDERS, counts_for_fill, make_sequence, random_box_types
-from .planner import STRATEGIES, GreedyPlanner
+from .benchmark import ALL_STRATEGIES, build_config, make_planner
 from .simulate import run_episode, validate
 from .viz import plot_pallet
 
@@ -24,18 +24,21 @@ def main(argv=None) -> int:
     ap.add_argument("--types", type=int, default=6)
     ap.add_argument("--fill", type=float, default=0.8, help="total box volume / pallet volume")
     ap.add_argument("--order", choices=ORDERS, default="random")
-    ap.add_argument("--strategy", choices=STRATEGIES, default="irap")
+    ap.add_argument("--strategy", choices=ALL_STRATEGIES, default="irap")
+    ap.add_argument("--max-rollouts", type=int, default=32, help="rollouts per decision for irap_la")
+    ap.add_argument("--time-budget", type=float, help="seconds per decision for irap_la (overrides --max-rollouts)")
+    ap.add_argument("--lookahead-k", type=int, default=0, help="observed upstream boxes passed to the planner")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="out/demo")
     args = ap.parse_args(argv)
 
-    cfg = load_config(args.config) if args.config else Config()
+    cfg = build_config(args.config, args.max_rollouts, args.time_budget)
     rng = np.random.default_rng(args.seed)
     types = random_box_types(rng, args.types)
     counts = counts_for_fill(rng, types, cfg, args.fill)
     seq = make_sequence(rng, types, counts, args.order, cfg)
 
-    res = run_episode(cfg, types, counts, seq, GreedyPlanner(args.strategy))
+    res = run_episode(cfg, types, counts, seq, make_planner(args.strategy), args.lookahead_k)
     m = res.metrics()
     errors = validate(res.state)
 

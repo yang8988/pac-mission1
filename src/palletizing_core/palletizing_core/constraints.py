@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 from .config import GRAVITY
 from .model import Box, PalletState
@@ -57,37 +59,83 @@ def evaluate(state: PalletState, box: Box, i: int, j: int, o: int) -> Tuple[Opti
 
     Returns (candidate, "") when feasible, otherwise (None, reason_code).
     """
+    cands, stats = evaluate_many(state, box, [(i, j, o)])
+    if cands:
+        return cands[0], ""
+    return None, next(r for r, n in stats.items() if n > 0)
+
+
+def evaluate_many(
+    state: PalletState, box: Box, actions: Sequence[Tuple[int, int, int]], limit: Optional[int] = None
+) -> Tuple[List[Candidate], Counter]:
+    """Tier-1 checks for many (i, j, o) actions of one box.
+
+    The cheap checks (bounds, height, support area) run vectorised per orientation; the rest
+    run per surviving candidate. Returns the feasible candidates and a count of reject reasons.
+
+    With `limit`, survivors of the cheap checks are visited lowest-top / best-supported first and
+    the search stops after `limit` feasible candidates (fast rollout policy).
+    """
+    cfg = state.cfg
+    pal, cp = cfg.pallet, cfg.constraints
+    stats: Counter = Counter()
+    out: List[Candidate] = []
+    if not actions:
+        return out, stats
+    # H6: pallet mass (independent of the position).
+    if state.mass + box.mass > pal.max_mass + 1e-9:
+        stats[PALLET_MASS] += len(actions)
+        return out, stats
+
+    nx, ny = state.H.shape
+    pending: list = []
+    by_o: Dict[int, List[Tuple[int, int]]] = {}
+    for i, j, o in actions:
+        by_o.setdefault(o, []).append((i, j))
+    for o, ij in by_o.items():
+        w, d, h = box.dims(o)
+        ni, nj = state.cells(w), state.cells(d)
+        arr = np.asarray(ij, dtype=np.int64)
+        I, J = arr[:, 0], arr[:, 1]
+        # H1: inside the pallet footprint.
+        inside = (I >= 0) & (J >= 0) & (I + ni <= nx) & (J + nj <= ny)
+        stats[OUT_OF_BOUNDS] += int((~inside).sum())
+        I, J = I[inside], J[inside]
+        if I.size == 0:
+            continue
+        regions = sliding_window_view(state.H, (ni, nj))[I, J]  # (n, ni, nj)
+        Z = regions.max(axis=(1, 2))
+        # H1: height limit.
+        ok_h = Z + h <= pal.max_height + 1e-6
+        stats[TOO_HIGH] += int((~ok_h).sum())
+        # H3a: supported area ratio. (H2, no interpenetration, holds by construction: z = max height.)
+        ratio = (regions >= (Z - cp.height_eps)[:, None, None]).mean(axis=(1, 2))
+        ok_s = ratio >= cp.min_support_ratio - 1e-9
+        stats[SUPPORT_AREA] += int((ok_h & ~ok_s).sum())
+        for k in np.flatnonzero(ok_h & ok_s):
+            pending.append((float(Z[k]) + h, -float(ratio[k]), int(I[k]), int(J[k]), o, w, d, h, ni, nj, float(Z[k])))
+    if limit is not None:
+        pending.sort(key=lambda p: p[:5])
+    for top, neg_ratio, i, j, o, w, d, h, ni, nj, z in pending:
+        cand, reason = _check_rest(state, box, i, j, o, w, d, h, ni, nj, z, -neg_ratio)
+        if cand is None:
+            stats[reason] += 1
+        else:
+            out.append(cand)
+            if limit is not None and len(out) >= limit:
+                break
+    return out, stats
+
+
+def _check_rest(
+    state: PalletState, box: Box, i: int, j: int, o: int, w: float, d: float, h: float, ni: int, nj: int, z: float,
+    ratio: float,
+) -> Tuple[Optional[Candidate], str]:  # fmt: skip
     cfg = state.cfg
     pal, cp, rob = cfg.pallet, cfg.constraints, cfg.robot
     g = pal.grid
-    w, d, h = box.dims(o)
-    ni, nj = state.cells(w), state.cells(d)
-    nx, ny = state.H.shape
-
-    # H1: inside the pallet footprint and under the height limit.
-    if i < 0 or j < 0 or i + ni > nx or j + nj > ny:
-        return None, OUT_OF_BOUNDS
-    region = state.H[i : i + ni, j : j + nj]
-    z = float(region.max())
-    if z + h > pal.max_height + 1e-6:
-        return None, TOO_HIGH
-
-    # H6: pallet mass.
-    if state.mass + box.mass > pal.max_mass + 1e-9:
-        return None, PALLET_MASS
-
-    # H3a: supported area ratio. (H2, no interpenetration, holds by construction: z = max height.)
-    sup = region >= z - cp.height_eps
-    ratio = float(sup.mean())
-    if ratio < cp.min_support_ratio - 1e-9:
-        return None, SUPPORT_AREA
-
     x0, y0 = i * g, j * g
     cx, cy = x0 + w / 2, y0 + d / 2
-
-    # H3b: the box COG must lie inside the support polygon (shrunk by a margin).
-    if z > 0 and not _cog_supported(sup, x0, y0, g, (cx, cy), cp.cog_margin):
-        return None, SUPPORT_COG
 
     # H7: simple reachability model (horizontal reach + tool height).
     bx, by, _ = rob.base
@@ -99,16 +147,24 @@ def evaluate(state: PalletState, box: Box, i: int, j: int, o: int) -> Tuple[Opti
     if not _gripper_clear(state, i, j, ni, nj, w, d, z + h):
         return None, GRIPPER_CLEARANCE
 
-    # Supporting boxes and contact areas.
+    # Supporting boxes: placed boxes whose top is at z and that overlap the footprint. Their
+    # clipped overlap rectangles are exactly the supported cells of the heightmap.
     supporters: List[Tuple[int, float]] = []
+    corners: List[Tuple[float, float]] = []
     if z > 0:
-        for k, pb in enumerate(state.placed):
-            if abs(pb.top - z) > cp.height_eps:
-                continue
-            oi = min(i + ni, pb.i0 + pb.ni) - max(i, pb.i0)
-            oj = min(j + nj, pb.j0 + pb.nj) - max(j, pb.j0)
-            if oi > 0 and oj > 0:
-                supporters.append((k, oi * oj * g * g))
+        r = state.rects
+        a0 = np.maximum(r[:, 0], i)
+        a1 = np.minimum(r[:, 2], i + ni)
+        b0 = np.maximum(r[:, 1], j)
+        b1 = np.minimum(r[:, 3], j + nj)
+        hit = (np.abs(r[:, 4] - z) <= cp.height_eps) & (a1 > a0) & (b1 > b0)
+        for k in np.flatnonzero(hit):
+            x_a, x_b, y_a, y_b = a0[k] * g, a1[k] * g, b0[k] * g, b1[k] * g
+            supporters.append((int(k), float((x_b - x_a) * (y_b - y_a))))
+            corners += [(x_a, y_a), (x_b, y_a), (x_a, y_b), (x_b, y_b)]
+        # H3b: the box COG must lie inside the support polygon (shrunk by a margin).
+        if not point_in_convex(convex_hull(corners), (cx, cy), cp.cog_margin):
+            return None, SUPPORT_COG
 
     # H4: propagate the new weight down the support graph and check allowable loads.
     delta: Dict[int, float] = {}
@@ -117,12 +173,12 @@ def evaluate(state: PalletState, box: Box, i: int, j: int, o: int) -> Tuple[Opti
 
     # H5: pallet COG radius, shrinking as the pallet fills up.
     m_after = state.mass + box.mass
-    cog = (state.moment + box.mass * np.array([cx, cy])) / m_after
-    if np.hypot(cog[0] - pal.length / 2, cog[1] - pal.width / 2) > cog_radius(state, 1):
+    cogx = (state.moment[0] + box.mass * cx) / m_after
+    cogy = (state.moment[1] + box.mass * cy) / m_after
+    if math.hypot(cogx - pal.length / 2, cogy - pal.width / 2) > cog_radius(state, 1):
         return None, PALLET_COG
 
-    cand = Candidate(box, i, j, o, w, d, h, ni, nj, z, ratio, supporters, delta, (float(cog[0]), float(cog[1])))
-    return cand, ""
+    return Candidate(box, i, j, o, w, d, h, ni, nj, z, ratio, supporters, delta, (cogx, cogy)), ""
 
 
 def cog_radius(state: PalletState, extra: int = 0) -> float:
@@ -155,19 +211,6 @@ def propagate_load(
         if below and not propagate_load(state, below, f, delta):
             return False
     return True
-
-
-def _cog_supported(sup: np.ndarray, x0: float, y0: float, g: float, cog: Tuple[float, float], margin: float) -> bool:
-    pts = []
-    for a in range(sup.shape[0]):
-        cols = np.flatnonzero(sup[a])
-        if cols.size == 0:
-            continue
-        xa, xb = x0 + a * g, x0 + (a + 1) * g
-        ya, yb = y0 + cols[0] * g, y0 + (cols[-1] + 1) * g
-        pts.extend([(xa, ya), (xb, ya), (xa, yb), (xb, yb)])
-    hull = convex_hull(pts)
-    return point_in_convex(hull, cog, margin)
 
 
 def convex_hull(points: Sequence[Tuple[float, float]]) -> List[Tuple[float, float]]:

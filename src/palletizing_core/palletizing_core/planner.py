@@ -11,12 +11,12 @@ from __future__ import annotations
 import time
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 from . import candidates as cgen
-from .constraints import Candidate, evaluate
+from .constraints import Candidate, evaluate_many
 from .model import Box, PalletState
-from .scoring import features, q_now
+from .scoring import FeatureContext, features, q_now
 
 PLACE = "place"
 REJECT = "reject"
@@ -35,29 +35,28 @@ class Decision:
     n_feasible: int = 0
     mask_stats: Dict[str, int] = field(default_factory=dict)
     elapsed_ms: float = 0.0
+    info: Dict[str, object] = field(default_factory=dict)
 
 
 class GreedyPlanner:
-    def __init__(self, strategy: str = "irap", top_n: int = 10) -> None:
+    def __init__(self, strategy: str = "irap", top_n: int = 10, limit: Optional[int] = None) -> None:
+        """`limit` caps the fully checked candidates (see constraints.evaluate_many); for rollouts."""
         if strategy not in STRATEGIES:
             raise ValueError(f"unknown strategy '{strategy}', expected one of {STRATEGIES}")
         self.strategy = strategy
         self.top_n = top_n
+        self.limit = limit
 
     def feasible_candidates(self, state: PalletState, box: Box) -> tuple[List[Candidate], int, Counter]:
         actions = cgen.generate(state, box)
-        stats: Counter = Counter()
-        feasible: List[Candidate] = []
-        for i, j, o in actions:
-            cand, reason = evaluate(state, box, i, j, o)
-            if cand is None:
-                stats[reason] += 1
-            else:
-                feasible.append(cand)
+        feasible, stats = evaluate_many(state, box, actions, self.limit)
         return feasible, len(actions), stats
 
-    def decide(self, state: PalletState, box: Box) -> Decision:
-        """Choose a placement for `box` without mutating `state`."""
+    def decide(self, state: PalletState, box: Box, queue: Sequence[str] = ()) -> Decision:
+        """Choose a placement for `box` without mutating `state`.
+
+        `queue` holds the type ids of boxes already observed upstream; the greedy planner ignores it.
+        """
         t0 = time.perf_counter()
         rob = state.cfg.robot
         if box.damaged:
@@ -85,13 +84,14 @@ class GreedyPlanner:
 
     def _rank(self, state: PalletState, cands: List[Candidate]) -> None:
         g = state.cfg.pallet.grid
+        ctx = FeatureContext(state)
         if self.strategy == "irap":
             for c in cands:
-                q_now(state, c)
+                q_now(state, c, ctx)
             cands.sort(key=lambda c: (-c.score, c.z, c.i, c.j, c.o))
             return
         for c in cands:
-            c.features = features(state, c)
+            c.features = features(state, c, ctx)
         if self.strategy == "dbl":
             for c in cands:
                 c.score = -c.z

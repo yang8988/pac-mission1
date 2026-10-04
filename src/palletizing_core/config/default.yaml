@@ -34,3 +34,19 @@ config:
     time: 0.3
     low_z: 1.0
     far_first: 0.5
+  lookahead:
+    k0: 8
+    max_scenarios: 16
+    first_round: 2
+    depth: 10
+    rollout_limit: 12
+    time_budget: 0.5
+    max_rollouts: null
+    alpha: 0.2
+    lam: 0.4
+    mu: 0.3
+    beta0: 1.0
+    beta_min: 0.3
+    compactness: 0.3
+    adversarial_frac: 0.25
+    seed: 0

@@ -115,8 +115,11 @@ class PalletState:
     supports: List[List[Tuple[int, float]]] = field(default_factory=list)
     ep: Set[Tuple[int, int]] = field(default_factory=set)  # extreme points in cell indices
     rejected: List[Box] = field(default_factory=list)
+    types: Dict[str, BoxType] = field(default_factory=dict)  # known box types (shared, read-only)
     mass: float = 0.0
     moment: np.ndarray = None  # sum(m * center_xy)
+    # Footprint and top of placed boxes as rows [i0, j0, i1, j1, top] for vectorised queries.
+    rects: np.ndarray = None
 
     def __post_init__(self) -> None:
         p = self.cfg.pallet
@@ -124,13 +127,15 @@ class PalletState:
             self.H = np.zeros((p.nx, p.ny), dtype=np.float64)
         if self.moment is None:
             self.moment = np.zeros(2)
+        if self.rects is None:
+            self.rects = np.zeros((0, 5))
         if not self.ep:
             self.ep = {(0, 0)}
 
     @classmethod
     def new(cls, cfg: Config, box_types: Sequence[BoxType], counts: Dict[str, int]) -> "PalletState":
         inv = {t.type_id: int(counts.get(t.type_id, 0)) for t in box_types}
-        return cls(cfg=cfg, inventory=inv, total_boxes=sum(inv.values()))
+        return cls(cfg=cfg, inventory=inv, total_boxes=sum(inv.values()), types={t.type_id: t for t in box_types})
 
     # ------------------------------------------------------------------ geometry helpers
     def cells(self, length: float) -> int:
@@ -160,6 +165,7 @@ class PalletState:
         new.ep = set(self.ep)
         new.rejected = list(self.rejected)
         new.moment = self.moment.copy()
+        new.rects = self.rects  # replaced (never mutated in place) on commit
         new.inventory = dict(self.inventory)
         return new
 
@@ -194,6 +200,7 @@ class PalletState:
         for k, df in cand.load_delta.items():
             self.placed[k].load += df
         self.H[pb.i0 : pb.i0 + pb.ni, pb.j0 : pb.j0 + pb.nj] = pb.top
+        self.rects = np.vstack([self.rects, [pb.i0, pb.j0, pb.i0 + pb.ni, pb.j0 + pb.nj, pb.top]])
         self.mass += pb.box.mass
         cx, cy, _ = pb.center
         self.moment += pb.box.mass * np.array([cx, cy])
